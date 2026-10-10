@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate 2D Checkers</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .piece {
+            transition: transform 0.2s ease, background-color 0.2s ease;
+        }
+        .piece:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- MAIN MENU SCREEN -->
+    <div id="menu-screen" class="flex flex-col items-center justify-center space-y-6 max-w-md w-full bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700">
+        <h1 class="text-4xl font-extrabold tracking-wider text-amber-500 mb-2 text-center">CHECKERS</h1>
+        <p class="text-slate-400 text-sm text-center mb-4">Choose a game mode or read the guide to get started.</p>
+        
+        <button onclick="startGame('pve')" class="w-full py-3.5 bg-amber-600 hover:bg-amber-500 font-bold rounded-xl shadow-md transition-all active:scale-95 text-lg">
+            1 Player vs AI
+        </button>
+        <button onclick="startGame('pvp')" class="w-full py-3.5 bg-slate-700 hover:bg-slate-600 font-bold rounded-xl shadow-md transition-all active:scale-95 text-lg border border-slate-600">
+            2 Players (Local)
+        </button>
+        <button onclick="showTutorial(true)" class="w-full py-3.5 bg-slate-700 hover:bg-slate-600 font-bold rounded-xl shadow-md transition-all active:scale-95 text-lg border border-slate-600">
+            How to Play
+        </button>
+    </div>
+
+    <!-- TUTORIAL SCREEN -->
+    <div id="tutorial-screen" class="hidden flex flex-col items-center justify-center space-y-6 max-w-lg w-full bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700">
+        <h2 class="text-2xl font-bold text-amber-500">How to Play Checkers</h2>
+        <div class="space-y-3 text-sm text-slate-300 text-left bg-slate-900 p-4 rounded-xl border border-slate-700 max-h-80 overflow-y-auto">
+            <p><strong>1. Movement:</strong> Pieces move diagonally one square forward on dark tiles.</p>
+            <p><strong>2. Capturing:</strong> Jump over an opponent's piece diagonally into an empty space behind it to capture it.</p>
+            <p><strong>3. King Promotion:</strong> When a piece reaches the furthest row on your opponent's side, it becomes a <strong>King (👑)</strong>. Kings can move and jump both forwards and backwards.</p>
+            <p><strong>4. Winning:</strong> You win by capturing all of the opponent's pieces or trapping them so they have no legal moves left.</p>
+        </div>
+        <button onclick="showTutorial(false)" class="w-full py-3 bg-amber-600 hover:bg-amber-500 font-bold rounded-xl shadow-md transition-all">
+            Back to Menu
+        </button>
+    </div>
+
+    <!-- GAME SCREEN -->
+    <div id="game-screen" class="hidden flex flex-col items-center">
+        <!-- Header / Scoreboard -->
+        <div class="mb-4 text-center">
+            <div class="flex gap-4 items-center justify-center bg-slate-800 px-6 py-2.5 rounded-xl shadow-lg border border-slate-700 mb-2">
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded-full bg-red-600 border border-white"></div>
+                    <span id="red-score" class="font-semibold text-sm">Red: 12</span>
+                </div>
+                <div class="h-5 w-px bg-slate-600"></div>
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded-full bg-slate-100 border border-slate-400"></div>
+                    <span id="white-score" class="font-semibold text-sm">White: 12</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Turn Indicator -->
+        <div id="status-message" class="mb-3 text-base font-medium text-amber-400 h-6">
+            Red's Turn
+        </div>
+
+        <!-- Game Board Container -->
+        <div class="relative p-2.5 bg-amber-950 rounded-2xl shadow-2xl border-4 border-amber-900">
+            <div id="board" class="grid grid-cols-8 w-[340px] h-[340px] sm:w-[440px] sm:h-[440px] bg-amber-900 rounded-lg overflow-hidden shadow-inner"></div>
+        </div>
+
+        <!-- Controls -->
+        <div class="flex gap-4 mt-5">
+            <button onclick="resetGame()" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-sm font-bold rounded-xl shadow-md transition-all">
+                Restart
+            </button>
+            <button onclick="returnToMenu()" class="px-5 py-2 bg-slate-700 hover:bg-slate-600 text-sm font-bold rounded-xl shadow-md transition-all border border-slate-600">
+                Main Menu
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const BOARD_SIZE = 8;
+        let board = [];
+        let turn = 'red'; // 'red' or 'white'
+        let selectedPiece = null;
+        let validMoves = [];
+        let gameOver = false;
+        let gameMode = 'pvp'; // 'pvp' or 'pve'
+
+        function startGame(mode) {
+            gameMode = mode;
+            document.getElementById('menu-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            initGame();
+        }
+
+        function returnToMenu() {
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('tutorial-screen').classList.add('hidden');
+            document.getElementById('menu-screen').classList.remove('hidden');
+        }
+
+        function showTutorial(show) {
+            if (show) {
+                document.getElementById('menu-screen').classList.add('hidden');
+                document.getElementById('tutorial-screen').classList.remove('hidden');
+            } else {
+                document.getElementById('tutorial-screen').classList.add('hidden');
+                document.getElementById('menu-screen').classList.remove('hidden');
+            }
+        }
+
+        function initGame() {
+            board = [];
+            turn = 'red';
+            selectedPiece = null;
+            validMoves = [];
+            gameOver = false;
+
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                board[r] = [];
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if ((r + c) % 2 === 1) {
+                        if (r < 3) board[r][c] = { color: 'white', king: false };
+                        else if (r > 4) board[r][c] = { color: 'red', king: false };
+                        else board[r][c] = null;
+                    } else {
+                        board[r][c] = null;
+                    }
+                }
+            }
+            render();
+        }
+
+        function render() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+
+            let redCount = 0;
+            let whiteCount = 0;
+
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const square = document.createElement('div');
+                    square.className = `relative flex items-center justify-center cursor-pointer ${
+                        (r + c) % 2 === 0 ? 'bg-[#f0d9b5]' : 'bg-[#b58863]'
+                    }`;
+                    square.dataset.row = r;
+                    square.dataset.col = c;
+
+                    const piece = board[r][c];
+                    if (piece) {
+                        if (piece.color === 'red') redCount++;
+                        if (piece.color === 'white') whiteCount++;
+
+                        const pieceEl = document.createElement('div');
+                        pieceEl.className = `piece w-[75%] h-[75%] rounded-full shadow-md flex items-center justify-center border-2 ${
+                            piece.color === 'red' ? 'bg-red-600 border-red-800' : 'bg-slate-100 border-slate-300'
+                        }`;
+                        if (selectedPiece && selectedPiece.r === r && selectedPiece.c === c) {
+                            pieceEl.classList.add('ring-4', 'ring-yellow-400', 'scale-105');
+                        }
+                        if (piece.king) {
+                            const crown = document.createElement('span');
+                            crown.className = 'text-xs font-bold text-amber-500';
+                            crown.innerText = '👑';
+                            pieceEl.appendChild(crown);
+                        }
+                        square.appendChild(pieceEl);
+                    }
+
+                    if (validMoves.some(m => m.r === r && m.c === c)) {
+                        const indicator = document.createElement('div');
+                        indicator.className = 'absolute w-4 h-4 bg-emerald-400 rounded-full shadow-lg animate-pulse';
+                        square.appendChild(indicator);
+                    }
+
+                    square.addEventListener('click', () => handleSquareClick(r, c));
+                    boardEl.appendChild(square);
+                }
+            }
+
+            document.getElementById('red-score').innerText = `Red: ${redCount}`;
+            document.getElementById('white-score').innerText = `White: ${whiteCount}`;
+
+            const statusEl = document.getElementById('status-message');
+            if (redCount === 0) {
+                gameOver = "White Wins!";
+                statusEl.innerText = gameOver;
+            } else if (whiteCount === 0) {
+                gameOver = "Red Wins!";
+                statusEl.innerText = gameOver;
+            } else if (gameOver) {
+                statusEl.innerText = gameOver;
+            } else {
+                statusEl.innerText = turn === 'red' ? "Red's Turn" : (gameMode === 'pve' ? "AI's Turn..." : "White's Turn");
+            }
+
+            // Trigger AI move if single player & AI's turn
+            if (!gameOver && gameMode === 'pve' && turn === 'white') {
+                setTimeout(makeAIMove, 300);
+            }
+        }
+
+        function handleSquareClick(r, c) {
+            if (gameOver || (gameMode === 'pve' && turn === 'white')) return;
+
+            const piece = board[r][c];
+            const moveTarget = validMoves.find(m => m.r === r && m.c === c);
+            
+            if (moveTarget) {
+                executeMove(selectedPiece.r, selectedPiece.c, r, c, moveTarget.jumped);
+                return;
+            }
+
+            if (piece && piece.color === turn) {
+                selectedPiece = { r, c };
+                validMoves = getValidMovesForPiece(r, c, board);
+                render();
+            } else {
+                selectedPiece = null;
+                validMoves = [];
+                render();
+            }
+        }
+
+        function getValidMovesForPiece(r, c, currentBoard) {
+            const piece = currentBoard[r][c];
+            if (!piece) return [];
+            let moves = [];
+
+            let directions = [];
+            if (piece.color === 'red' || piece.king) directions.push(-1);
+            if (piece.color === 'white' || piece.king) directions.push(1);
+
+            directions.forEach(dr => {
+                [-1, 1].forEach(dc => {
+                    let targetR = r + dr;
+                    let targetC = c + dc;
+
+                    if (targetR >= 0 && targetR < BOARD_SIZE && targetC >= 0 && targetC < BOARD_SIZE) {
+                        let targetPiece = currentBoard[targetR][targetC];
+                        if (!targetPiece) {
+                            moves.push({ r: targetR, c: targetC, jumped: null });
+                        } else if (targetPiece.color !== piece.color) {
+                            let jumpR = targetR + dr;
+                            let jumpC = targetC + dc;
+                            if (jumpR >= 0 && jumpR < BOARD_SIZE && jumpC >= 0 && jumpC < BOARD_SIZE && !currentBoard[jumpR][jumpC]) {
+                                moves.push({ r: jumpR, c: jumpC, jumped: { r: targetR, c: targetC } });
+                            }
+                        }
+                    }
+                });
+            });
+            return moves;
+        }
+
+        function getAllMovesForColor(color, currentBoard) {
+            let allMoves = [];
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    let piece = currentBoard[r][c];
+                    if (piece && piece.color === color) {
+                        let moves = getValidMovesForPiece(r, c, currentBoard);
+                        moves.forEach(m => {
+                            allMoves.push({ fromR: r, fromC: c, toR: m.r, toC: m.c, jumped: m.jumped });
+                        });
+                    }
+                }
+            }
+            return allMoves;
+        }
+
+        function executeMove(fromR, fromC, toR, toC, jumped) {
+            let piece = board[fromR][fromC];
+            board[toR][toC] = piece;
+            board[fromR][fromC] = null;
+
+            if (jumped) {
+                board[jumped.r][jumped.c] = null;
+            }
+
+            if (piece.color === 'red' && toR === 0) piece.king = true;
+            if (piece.color === 'white' && toR === BOARD_SIZE - 1) piece.king = true;
+
+            selectedPiece = null;
+            validMoves = [];
+            turn = turn === 'red' ? 'white' : 'red';
+            render();
+        }
+
+        function resetGame() {
+            initGame();
+        }
+
+        // AI LOGIC (Minimax)
+        function makeAIMove() {
+            if (gameOver) return;
+            let bestMove = minimaxRoot(board, 3, false); // Depth 3 search for White
+            if (bestMove) {
+                executeMove(bestMove.fromR, bestMove.fromC, bestMove.toR, bestMove.toC, bestMove.jumped);
+            } else {
+                gameOver = "Red Wins! (AI has no moves)";
+                render();
+            }
+        }
+
+        function minimaxRoot(currentBoard, depth, isMaximizing) {
+            let possibleMoves = getAllMovesForColor('white', currentBoard);
+            let bestMove = null;
+            let bestValue = -99999;
+
+            for (let i = 0; i < possibleMoves.length; i++) {
+                let move = possibleMoves[i];
+                let clonedBoard = cloneBoard(currentBoard);
+                applyMoveToBoard(clonedBoard, move);
+                
+                let value = minimax(clonedBoard, depth - 1, false);
+                if (value >= bestValue) {
+                    bestValue = value;
+                    bestMove = move;
+                }
+            }
+            return bestMove;
+        }
+
+        function minimax(currentBoard, depth, isMaximizing) {
+            if (depth === 0) return evaluateBoard(currentBoard);
+
+            let color = isMaximizing ? 'white' : 'red';
+            let possibleMoves = getAllMovesForColor(color, currentBoard);
+
+            if (possibleMoves.length === 0) return isMaximizing ? -1000 : 1000;
+
+            if (isMaximizing) {
+                let maxEval = -99999;
+                for (let i = 0; i < possibleMoves.length; i++) {
+                    let clonedBoard = cloneBoard(currentBoard);
+                    applyMoveToBoard(clonedBoard, possibleMoves[i]);
+                    let evaluation = minimax(clonedBoard, depth - 1, false);
+                    maxEval = Math.max(maxEval, evaluation);
+                }
+                return maxEval;
+            } else {
+                let minEval = 99999;
+                for (let i = 0; i < possibleMoves.length; i++) {
+                    let clonedBoard = cloneBoard(currentBoard);
+                    applyMoveToBoard(clonedBoard, possibleMoves[i]);
+                    let evaluation = minimax(clonedBoard, depth - 1, true);
+                    minEval = Math.min(minEval, evaluation);
+                }
+                return minEval;
+            }
+        }
+
+        function evaluateBoard(currentBoard) {
+            let score = 0;
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    let piece = currentBoard[r][c];
+                    if (piece) {
+                        let val = piece.king ? 5 : 1;
+                        if (piece.color === 'white') {
+                            score += val + (r * 0.1); // Reward advancement for AI
+                        } else {
+                            score -= val + ((7 - r) * 0.1);
+                        }
+                    }
+                }
+            }
+            return score;
+        }
+
+        function cloneBoard(currentBoard) {
+            let newBoard = [];
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                newBoard[r] = [];
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    let p = currentBoard[r][c];
+                    if (p) {
+                        newBoard[r][c] = { color: p.color, king: p.king };
+                    } else {
+                        newBoard[r][c] = null;
+                    }
+                }
+            }
+            return newBoard;
+        }
+
+        function applyMoveToBoard(currentBoard, move) {
+            let piece = currentBoard[move.fromR][move.fromC];
+            currentBoard[move.toR][move.toC] = piece;
+            currentBoard[move.fromR][move.fromC] = null;
+            if (move.jumped) {
+                currentBoard[move.jumped.r][move.jumped.c] = null;
+            }
+            if (piece.color === 'red' && move.toR === 0) piece.king = true;
+            if (piece.color === 'white' && move.toR === BOARD_SIZE - 1) piece.king = true;
+        }
+    </script>
+</body>
+</html>
